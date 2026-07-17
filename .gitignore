@@ -1,0 +1,26 @@
+# Local datasets and generated conversion output
+cityscapes/
+kitti/
+cityscapes_kitti_format/
+
+# Python cache and local tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local environment and logs
+.env
+*.log
