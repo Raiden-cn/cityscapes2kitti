@@ -96,3 +96,31 @@ for split in train val test; do
   find "cityscapes_kitti_format/$split/calib" -type f | wc -l
 done
 ```
+
+## Visualization
+
+Use `visualize_dataset.py` to verify a selected frame. The script supports both the converted Cityscapes dataset and a standard KITTI dataset, uses the same KITTI-style `image_2`, `label_2`, and `calib` layout, and writes PNG files instead of opening a GUI window.
+
+For a converted Cityscapes frame:
+
+```bash
+python3 visualize_dataset.py \
+  --dataset cityscapes \
+  --root /path/to/cityscapes_kitti_format \
+  --split train \
+  --id 000000 \
+  --output-dir visualization
+```
+
+For a standard KITTI frame:
+
+```bash
+python3 visualize_dataset.py \
+  --dataset kitti \
+  --root /path/to/kitti \
+  --split train \
+  --id 000000 \
+  --output-dir visualization
+```
+
+The output is saved as `visualization/<dataset>_<split>_<id>.png`. It contains the 2D bounding box, projected 3D box, object class, 3D location, and dimensions. KITTI uses `training` automatically; converted Cityscapes uses the selected `train`, `val`, or `test` directory.

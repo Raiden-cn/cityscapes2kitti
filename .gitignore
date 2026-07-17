@@ -24,3 +24,6 @@ Thumbs.db
 # Local environment and logs
 .env
 *.log
+
+# Generated visualization files
+visualization/
