@@ -1,7 +1,7 @@
 # Local datasets and generated conversion output
-cityscapes/
-kitti/
-cityscapes_kitti_format/
+cityscapes
+kitti
+cityscapes_kitti_format
 
 # Python cache and local tooling
 __pycache__/
