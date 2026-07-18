@@ -78,3 +78,15 @@ visualization/<dataset>_<split>_<id>_3d.png
 ```
 
 The `_2d.png` file shows 2D boxes and labels. The `_3d.png` file shows projected 3D boxes, labels, and the red front-face marker.
+
+## Example Visualization
+
+Example outputs for Cityscapes `train/000000`:
+
+### 2D boxes
+
+![Cityscapes 2D visualization](docs/cityscapes_train_000000_2d.png)
+
+### 3D boxes
+
+![Cityscapes 3D visualization](docs/cityscapes_train_000000_3d.png)
