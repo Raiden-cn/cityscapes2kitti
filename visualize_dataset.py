@@ -66,19 +66,31 @@ def project_box(obj, projection):
     return points
 
 
-def draw_object(draw, obj, projection, font):
+def draw_2d_object(draw, obj, font):
     color = COLORS.get(obj["type"], (255, 255, 0))
     x1, y1, x2, y2 = obj["bbox"]
     draw.rectangle((x1, y1, x2, y2), outline=color, width=3)
+    text = f"{obj['type']} bbox=({x1:.0f},{y1:.0f},{x2:.0f},{y2:.0f})"
+    left, top, right, bottom = draw.textbbox((x1, max(0, y1 - 20)), text, font=font)
+    draw.rectangle((left, top, right + 2, bottom + 2), fill=(0, 0, 0))
+    draw.text((x1, max(0, y1 - 20)), text, fill=color, font=font)
+
+
+def draw_3d_object(draw, obj, projection, font):
+    color = COLORS.get(obj["type"], (255, 255, 0))
     corners = project_box(obj, projection)
     if corners:
         edges = ((0, 1), (1, 2), (2, 3), (3, 0), (4, 5), (5, 6), (6, 7), (7, 4), (0, 4), (1, 5), (2, 6), (3, 7))
         for a, b in edges:
             draw.line((corners[a], corners[b]), fill=color, width=3)
+        # Mark the front face with a red X so the heading is unambiguous.
+        draw.line((corners[0], corners[5]), fill=(255, 0, 0), width=5)
+        draw.line((corners[1], corners[4]), fill=(255, 0, 0), width=5)
     text = f"{obj['type']} xyz=({obj['x']:.1f},{obj['y']:.1f},{obj['z']:.1f}) dims=({obj['h']:.1f},{obj['w']:.1f},{obj['l']:.1f})"
-    left, top, right, bottom = draw.textbbox((x1, max(0, y1 - 20)), text, font=font)
+    anchor = corners[0] if corners else (10, 10)
+    left, top, right, bottom = draw.textbbox(anchor, text, font=font)
     draw.rectangle((left, top, right + 2, bottom + 2), fill=(0, 0, 0))
-    draw.text((x1, max(0, y1 - 20)), text, fill=color, font=font)
+    draw.text(anchor, text, fill=color, font=font)
 
 
 def resolve_root(dataset, root):
@@ -106,20 +118,27 @@ def main():
     if not image_path.exists():
         raise FileNotFoundError(f"Image not found: {image_path}")
     image = Image.open(image_path).convert("RGB")
-    draw = ImageDraw.Draw(image)
     projection = parse_calib(calib_path)
     try:
         font = ImageFont.truetype("DejaVuSans.ttf", 16)
     except OSError:
         font = ImageFont.load_default()
     labels = parse_labels(label_path)
-    for obj in labels:
-        draw_object(draw, obj, projection, font)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"{args.dataset}_{args.split}_{sample_id}.png"
-    image.save(output_path)
-    print(f"Saved {len(labels)} objects to {output_path}")
+    image_2d = image.copy()
+    draw_2d = ImageDraw.Draw(image_2d)
+    for obj in labels:
+        draw_2d_object(draw_2d, obj, font)
+    output_2d = output_dir / f"{args.dataset}_{args.split}_{sample_id}_2d.png"
+    image_2d.save(output_2d)
+    image_3d = image.copy()
+    draw_3d = ImageDraw.Draw(image_3d)
+    for obj in labels:
+        draw_3d_object(draw_3d, obj, projection, font)
+    output_3d = output_dir / f"{args.dataset}_{args.split}_{sample_id}_3d.png"
+    image_3d.save(output_3d)
+    print(f"Saved {len(labels)} objects to {output_2d} and {output_3d}")
 
 
 if __name__ == "__main__":

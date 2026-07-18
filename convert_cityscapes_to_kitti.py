@@ -2,7 +2,7 @@
 """Convert Cityscapes leftImg8bit/gtBbox3d to a KITTI-style dataset.
 
 The generated labels use KITTI camera coordinates (X right, Y down, Z forward).
-Cityscapes ISO8855 coordinates are converted as X=-y, Y=-z, Z=x.
+Cityscapes ISO8855 coordinates are transformed with each frame's `sensor_T_ISO_8855` matrix, then mapped to KITTI axes; geometric centers are converted to KITTI bottom centers.
 """
 import argparse
 import json
@@ -19,11 +19,15 @@ CLASS_MAP = {
 }
 
 
-def yaw_from_xyzw(q):
-    x, y, z, w = [float(v) for v in q]
-    r00 = 1.0 - 2.0 * (y * y + z * z)
-    r10 = 2.0 * (x * y + z * w)
-    return math.atan2(r10, r00)
+def rotation_matrix_wxyz(q):
+    w, x, y, z = [float(v) for v in q]
+    return ((1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)),
+            (2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)),
+            (2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)))
+
+
+def mat_vec(mat, vec):
+    return [sum(mat[row][col] * vec[col] for col in range(3)) for row in range(3)]
 
 
 def link_or_copy(src, dst, copy_images):
@@ -36,7 +40,7 @@ def link_or_copy(src, dst, copy_images):
         dst.symlink_to(os.path.relpath(src, dst.parent))
 
 
-def kitti_label(obj):
+def kitti_label(obj, sensor):
     label = CLASS_MAP.get(obj.get("label", ""))
     if not label or "3d" not in obj or "2d" not in obj:
         return None
@@ -50,10 +54,17 @@ def kitti_label(obj):
     dims = list(map(float, d.get("dimensions", [0, 0, 0])))
     if len(center) != 3 or len(dims) != 3:
         return None
-    # ISO8855: (forward, left, up), KITTI: (right, down, forward).
-    tx, ty, tz = -center[1], -center[2], center[0]
     h, w, l = dims[2], dims[1], dims[0]
-    ry = yaw_from_xyzw(d.get("rotation", [0, 0, 0, 1]))
+    # ISO8855: (forward, left, up), KITTI: (right, down, forward).
+    transform = sensor.get("sensor_T_ISO_8855", [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
+    sensor_center = [sum(transform[row][col] * center[col] for col in range(3)) + transform[row][3] for row in range(3)]
+    tx, ty, tz = -sensor_center[1], -sensor_center[2] + h / 2.0, sensor_center[0]
+    iso_rotation = rotation_matrix_wxyz(d.get("rotation", [1, 0, 0, 0]))
+    # Local +X is the vehicle front. Convert ISO (forward,left,up) to KITTI (right,down,forward).
+    front_iso = mat_vec(iso_rotation, [1.0, 0.0, 0.0])
+    front_sensor = mat_vec(transform[:3], front_iso)
+    front_kitti = [-front_sensor[1], -front_sensor[2], front_sensor[0]]
+    ry = math.atan2(-front_kitti[2], front_kitti[0])
     trunc = min(1.0, max(0.0, float(obj.get("truncation", 0.0))))
     occ = int(min(3, max(0, round(float(obj.get("occlusion", 0.0)) * 3))))
     height_px = y2 - y1
@@ -92,7 +103,7 @@ def convert(src, dst, copy_images=False):
                 with ann.open() as f:
                     data = json.load(f)
                 sensor = data.get("sensor", {})
-                objects = [line for obj in data.get("objects", []) if (line := kitti_label(obj))]
+                objects = [line for obj in data.get("objects", []) if (line := kitti_label(obj, sensor))]
             (dst / split / "label_2" / f"{sample_id}.txt").write_text("\n".join(objects) + ("\n" if objects else ""))
             fx, fy = float(sensor.get("fx", 2268.36)), float(sensor.get("fy", 2225.54))
             u0, v0 = float(sensor.get("u0", 1048.64)), float(sensor.get("v0", 519.277))
